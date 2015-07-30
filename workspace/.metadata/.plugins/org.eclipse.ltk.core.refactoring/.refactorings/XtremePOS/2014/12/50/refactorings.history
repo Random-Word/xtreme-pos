@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Rename local variable &apos;contentView&apos; in &apos;com.example.xtremepos.Orders.onCreate(...)&apos; to &apos;webView&apos;&#x0A;- Original project: &apos;XtremePOS&apos;&#x0A;- Original element: &apos;com.example.xtremepos.Orders.onCreate(Bundle).contentView&apos;&#x0A;- Renamed element: &apos;contentView&apos;&#x0A;- Update references to refactored element" description="Rename local variable &apos;contentView&apos;" id="org.eclipse.jdt.ui.rename.local.variable" input="/src&lt;com.example.xtremepos{Orders.java[Orders~onCreate~QBundle;@contentView!1650!1704!1664!1674!QWebview;!67108880!false" name="webView" references="true" stamp="1417988098431" version="1.0"/>
+</session>

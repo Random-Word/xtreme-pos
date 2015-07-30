@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Rename field &apos;openDeviceName&apos; in &apos;com.example.xtremepos.Orders&apos; to &apos;printer_ip&apos;&#x0A;- Original project: &apos;XtremePOS&apos;&#x0A;- Original element: &apos;com.example.xtremepos.Orders.openDeviceName&apos;&#x0A;- Renamed element: &apos;com.example.xtremepos.Orders.printer_ip&apos;&#x0A;- Update references to refactored element&#x0A;- Update textual occurrences in comments and strings" delegate="false" deprecate="false" description="Rename field &apos;openDeviceName&apos;" flags="589830" getter="false" id="org.eclipse.jdt.ui.rename.field" input="/src&lt;com.example.xtremepos{Orders.java[Orders^openDeviceName" name="printer_ip" references="true" setter="false" stamp="1422218797507" textual="false" version="1.0"/>
+</session>
