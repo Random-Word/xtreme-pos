@@ -1,14 +1,27 @@
 package com.example.xtremepos;
 
+import java.io.BufferedInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLConnection;
+
 import org.apache.http.util.EncodingUtils;
+import org.json.JSONArray;
+import org.json.JSONException;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.ProgressDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.media.AudioAttributes;
 import android.media.SoundPool;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -31,7 +44,8 @@ import com.example.xtremepos.util.SystemUiHider;
  *
  * @see SystemUiHider
  */
-public class Orders extends Activity implements StatusChangeEventListener, BatteryStatusChangeEventListener {
+@SuppressWarnings("deprecation")
+public class Orders extends Activity implements StatusChangeEventListener {
     /**
      * Whether or not the system UI should be auto-hidden after
      * {@link #AUTO_HIDE_DELAY_MILLIS} milliseconds.
@@ -50,17 +64,20 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
     private static final int HIDER_FLAGS = SystemUiHider.FLAG_HIDE_NAVIGATION;
 
     static Print printer = null;
-    String printer_ip = "192.168.0.78";//.0.78";
+    static String printer_ip = "192.168.0.78";//.0.78";
     int connectionType = Print.DEVTYPE_TCP;
     static int language = com.epson.eposprint.Builder.LANG_EN;
     static String printerName = "TM-T20II";
     
-    static final String vendorURL = "http://xtreme-pizza.ca/vendor";//"http://development-xtreme-pizza.ca/vendor";//
+    static final String vendorURL = "http://xtreme-pizza.ca/pos";//"http://development-xtreme-pizza.ca/vendor";//
     
     static final int SEND_TIMEOUT = 10 * 1000;
     static final int SIZEWIDTH_MAX = 8;
     static final int SIZEHEIGHT_MAX = 8;
     
+    private int status;
+    
+    public SharedPreferences data;
     WebView webView;
     
     /**
@@ -69,6 +86,8 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
     private SystemUiHider mSystemUiHider;
 
 	private int order_tone_id;
+	private int gangnam_tone_id;
+	private int current_playing_tone = -1;
 
 	private SoundPool sound_pool;
 
@@ -86,6 +105,7 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
     	
         try{
             printer.openPrinter(deviceType, ip, enabled, updateInterval);
+            printer.setStatusChangeEventCallback(this);
         }catch(Exception e){
             printer = null;
             ShowMsg.showException(e, "openPrinter" , this);
@@ -103,6 +123,19 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
         cut(true);
         
 		return "1:false";
+    }
+    
+    static void resetPrinter(String ip) {
+    	int deviceType = Print.DEVTYPE_TCP;
+    	int enabled = Print.TRUE;
+    	int updateInterval = 1000;
+    	try {
+			printer.closePrinter();
+			printer.openPrinter(deviceType, ip, enabled, updateInterval);
+		} catch (EposException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
     }
     
     public void login(WebView webView) {
@@ -140,8 +173,12 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
         .build();
         
+        data = getPreferences(0);
+        Log.e("Last Stored Order", data.getString("orderString", "Empty"));
+        
         sound_pool = new SoundPool.Builder().setAudioAttributes(attr).setMaxStreams(1).build();
         order_tone_id = sound_pool.load(this, R.raw.new_order_tone, 1);
+        gangnam_tone_id = sound_pool.load(this, R.raw.gangnam_style, 1);
         
         JavaScriptInterface jsInterface = new JavaScriptInterface(this);
         webView = (WebView) findViewById(R.id.webview);
@@ -151,8 +188,10 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
         webView.addJavascriptInterface(jsInterface, "Android");
         webView.setWebViewClient(new WebViewClient());
         //login(webView);
-        webView.loadUrl("http://xtreme-pizza.ca/vendor");//"http://kleinlab.psychology.dal.ca/xtreme/vendor");//
+        webView.loadUrl(vendorURL);//"http://kleinlab.psychology.dal.ca/xtreme/pos");//"http://xtreme-pizza.ca/pos");//
         webView.setKeepScreenOn(true);
+        
+        openDefaultPrinter();
         
         //Log.i("Orders", "Printer is: " + getPrinter());
         
@@ -216,7 +255,8 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
     }
     
     static String printText(String text, int font_id, String alignment, int line_space, int size_w, int size_h, int x_pos, boolean bold, boolean underline){
-        Builder builder = null;
+    	resetPrinter(printer_ip);
+    	Builder builder = null;
         Log.i("FOR_JON!", "Printing: "+text);
         @SuppressWarnings("unused")
 		String method = "";
@@ -260,12 +300,12 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
             try{
                 Print printer = getPrinter();
                 printer.sendData(builder, SEND_TIMEOUT, status, battery);
-                to_return = "{success: true, error: "+EposException.SUCCESS+", printerStatus: "+status[0]+", batteryStatus: "+battery[0]+"}";
+                to_return = "{\"success\": true, \"error\": false, \"printerStatus\": \""+status+"\", \"batteryStatus\": \""+battery+"\"}";
             }catch(EposException e){
-                return "{success: false, error: "+e.getErrorStatus()+", printerStatus: "+e.getPrinterStatus()+", batteryStatus: "+e.getBatteryStatus()+"}";
+                return "{\"success\": false, \"error\": \""+e.getErrorStatus()+"\", \"printerStatus\": \""+e.getPrinterStatus()+"\", \"batteryStatus\": \""+e.getBatteryStatus()+"\"}";
             }
         }catch(Exception e){
-        	return "{success: false, error: "+e+", printerStatus: null, batteryStatus: null}";
+        	return "{\"success\": false, \"error\": \""+e+"\", \"printerStatus\": null, \"batteryStatus\": null}";
         }
         
         //remove builder
@@ -322,12 +362,12 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
             try{
                 Print printer = getPrinter();
                 printer.sendData(builder, SEND_TIMEOUT, status, battery);
-                to_return = "{success: true, response: "+EposException.SUCCESS+", printerStatus: "+status[0]+", batteryStatus: "+battery[0]+"}";
-            }catch(EposException e){
-            	return "{success: false, error: "+e.getErrorStatus()+", printerStatus: "+e.getPrinterStatus()+", batteryStatus: "+e.getBatteryStatus()+"}";
+                to_return = "{\"success\": true, \"error\": false, \"data\": {\"response\": \""+EposException.SUCCESS+"\", \"printerStatus\": \""+status[0]+"\", \"batteryStatus\": \""+battery[0]+"\"}}";
+            } catch (EposException e) {
+            	return "{\"success\": false, \"error\": \""+e.getErrorStatus()+"\", \"data\": {\"printerStatus\": \""+e.getPrinterStatus()+"\", \"batteryStatus\": \""+e.getBatteryStatus()+"\"}}";
             }
-        }catch(Exception e){
-        	return "{success: false, error: "+e+"}";
+        } catch (Exception e) {
+        	return "{\"success\": false, \"error\": '"+e+"'}";
         }
         
         //remove builder
@@ -353,23 +393,9 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
     
     @Override
 	public void onStatusChangeEvent(final String deviceName, final int status) {
-		runOnUiThread(new Runnable() {
-			@Override
-			public synchronized void run() {
-				ShowMsg.showStatusChangeEvent(deviceName, status, Orders.this);
-			}
-		});
+		Log.e("Status Change: ", Integer.toString(status));
 	}
 
-	@Override
-	public void onBatteryStatusChangeEvent(final String deviceName, final int battery) {
-		runOnUiThread(new Runnable() {
-			@Override
-			public synchronized void run() {
-				ShowMsg.showBatteryStatusChangeEvent(deviceName, battery, Orders.this);
-			}
-		});
-	}
 	public static AlertDialog showText(String message, String title, Activity activity) {
 		// 1. Instantiate an AlertDialog.Builder with its constructor
 		AlertDialog.Builder builder = new AlertDialog.Builder(activity);
@@ -381,11 +407,128 @@ public class Orders extends Activity implements StatusChangeEventListener, Batte
 		// 3. Get the AlertDialog from create()
 		return builder.create();
 	}
-	public void playTone() {
-		sound_pool.play(order_tone_id, 1, 1, 0, 0, 1);
+	public String playTone(String sound) {
+		if (current_playing_tone == -1) {
+			try {
+				Log.e("MUSIC", sound);
+				if (sound.equals("tone")) current_playing_tone = sound_pool.play(order_tone_id, 1, 1, 0, 0, 1);
+				else if (sound.equals("gangnam")) current_playing_tone = sound_pool.play(gangnam_tone_id, 1, 1, 0, -1, 1);
+				else return("{\"success\": false, \"error\": \"Sound name "+sound+" not in library.\"}");
+				return("{\"success\": true, \"error\": false}");
+			} catch (Exception e) {
+				return("{\"success\": false, \"error\": \""+e+"\"}");
+			}
+		} else {
+			return("{\"success\": false, \"error\": \"Sound already playing.\"}");
+		}
 	}
+	
+	public String endTone() {
+		try {
+			sound_pool.stop(current_playing_tone);
+			current_playing_tone = -1;
+			return("{\"success\": true, \"error\": false}");
+		} catch (Exception e) {
+			return("{\"success\": false, \"error\": \""+e+"\"}");
+		}
+	}
+	
+	public String downloadTone(String slug) {
+		try {
+			new DownloadFileFromURL(slug).execute("xtreme-pizza.ca/tones/"+slug);
+		} catch (Exception e) {
+			return ("{\"success\": false, \"error\": '" + e + "'}");
+		}
+		return ("{\"success\": true, \"error\": false}");
+	}
+	
+	public String loadTone(String slug) {
+		try {
+			this.sound_pool.load(Environment
+	                    .getExternalStorageDirectory().toString()
+	                    + "/sounds/" +slug, 1);
+		} catch (Exception e) {
+			return ("{\"success\": true, \"error\": false}");
+		}
+		return ("{\"success\": true, \"error\": false}");
+	}
+	
 	public void refresh(String url) {
 		Log.i("Loading URL", url);
 		webView.loadUrl(url);
 	}
+	
+	public int getStatus() {
+		return status;
+	}
+
+	public void setStatus(int status) {
+		this.status = status;
+	}
+
+	/**
+	 * Background Async Task to download file
+	 * */
+	class DownloadFileFromURL extends AsyncTask<String, String, String> {
+		
+		private String fname;
+
+		public DownloadFileFromURL(String fname) {
+			super();
+			this.fname = fname;
+		}
+	    /**
+	     * Downloading file in background thread
+	     * */
+	    @Override
+	    protected String doInBackground(String... f_url) {
+	        int count;
+	        try {
+	            URL url = new URL(f_url[0]);
+	            URLConnection conection = url.openConnection();
+	            conection.connect();
+
+	            // this will be useful so that you can show a tipical 0-100%
+	            // progress bar
+	            int lenghtOfFile = conection.getContentLength();
+
+	            // download the file
+	            InputStream input = new BufferedInputStream(url.openStream(),
+	                    8192);
+
+	            // Output stream
+	            OutputStream output = new FileOutputStream(Environment
+	                    .getExternalStorageDirectory().toString()
+	                    + "/raw/" + this.fname);
+
+	            byte data[] = new byte[1024];
+
+	            long total = 0;
+
+	            while ((count = input.read(data)) != -1) {
+	                total += count;
+	                // publishing the progress....
+	                // After this onProgressUpdate will be called
+	                publishProgress("" + (int) ((total * 100) / lenghtOfFile));
+
+	                // writing data to file
+	                output.write(data, 0, count);
+	            }
+
+	            // flushing output
+	            output.flush();
+
+	            // closing streams
+	            output.close();
+	            input.close();
+
+	        } catch (Exception e) {
+	            Log.e("Error: ", e.getMessage());
+	        }
+
+	        return null;
+	    }
+
+	}
+	
 }

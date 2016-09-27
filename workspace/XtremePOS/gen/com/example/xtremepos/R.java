@@ -53,7 +53,8 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
         public static final int open=0x7f030001;
     }
     public static final class raw {
-        public static final int new_order_tone=0x7f040000;
+        public static final int gangnam_style=0x7f040000;
+        public static final int new_order_tone=0x7f040001;
     }
     public static final class string {
         public static final int align_center=0x7f060060;
